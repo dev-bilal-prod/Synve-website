@@ -9,6 +9,7 @@ export default function Contact() {
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
 
+        // Save to database
         const { error } = await supabase
             .from("leads")
             .insert([{
@@ -23,6 +24,13 @@ export default function Contact() {
             console.error(error);
             return;
         }
+
+        // Send email notification
+        await fetch("/api/notify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(form),
+        });
 
         setSent(true);
         setForm({ name: "", email: "", service: "", message: "" });
