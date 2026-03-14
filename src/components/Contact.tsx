@@ -1,13 +1,29 @@
 "use client";
-
+import { supabase } from "@/lib/supabase";
 import { useState } from "react";
 
 export default function Contact() {
     const [form, setForm] = useState({ name: "", email: "", service: "", message: "" });
     const [sent, setSent] = useState(false);
 
-    function handleSubmit(e: React.FormEvent) {
+    async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
+
+        const { error } = await supabase
+            .from("leads")
+            .insert([{
+                name: form.name,
+                email: form.email,
+                service: form.service,
+                message: form.message,
+            }]);
+
+        if (error) {
+            alert("Something went wrong. Please try again.");
+            console.error(error);
+            return;
+        }
+
         setSent(true);
         setForm({ name: "", email: "", service: "", message: "" });
     }
