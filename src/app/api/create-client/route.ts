@@ -21,10 +21,3 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true });
 }
-```
-
-**Step 3 — Add site URL to environment variables**
-
-Add to `.env.local`:
-```
-NEXT_PUBLIC_SITE_URL = https://your-actual-vercel-url.vercel.app
