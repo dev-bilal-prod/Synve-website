@@ -114,29 +114,23 @@ export default function AdminDashboard() {
     async function addClient(e: React.FormEvent) {
         e.preventDefault();
 
-        // Create auth user
-        const { data, error } = await supabase.auth.admin.createUser({
-            email: clientForm.email,
-            password: Math.random().toString(36).slice(-10),
-            email_confirm: true,
+        const res = await fetch("/api/create-client", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(clientForm),
         });
 
-        if (error) { alert("Error creating client: " + error.message); return; }
+        const data = await res.json();
 
-        // Add to clients table
-        await supabase.from("clients").insert([{
-            id: data.user.id,
-            name: clientForm.name,
-            email: clientForm.email,
-            phone: clientForm.phone,
-            company: clientForm.company,
-        }]);
+        if (data.error) {
+            alert("Error: " + data.error);
+            return;
+        }
 
         setClientForm({ name: "", email: "", phone: "", company: "" });
         setShowAddClient(false);
         fetchClients();
     }
-
     async function addProject(e: React.FormEvent) {
         e.preventDefault();
         const { data } = await supabase.from("projects").insert([projectForm]).select().single();
