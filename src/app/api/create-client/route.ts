@@ -4,11 +4,9 @@ import { NextResponse } from "next/server";
 export async function POST(request: Request) {
     const { name, email, phone, company } = await request.json();
 
-    // Create auth user
-    const { data, error } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        password: Math.random().toString(36).slice(-10) + "A1!",
-        email_confirm: true,
+    // Invite user via email (sends magic link automatically)
+    const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/client/onboarding`,
     });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -21,5 +19,12 @@ export async function POST(request: Request) {
 
     if (clientError) return NextResponse.json({ error: clientError.message }, { status: 400 });
 
-    return NextResponse.json({ success: true, userId: data.user.id });
+    return NextResponse.json({ success: true });
 }
+```
+
+**Step 3 — Add site URL to environment variables**
+
+Add to `.env.local`:
+```
+NEXT_PUBLIC_SITE_URL = https://your-actual-vercel-url.vercel.app
