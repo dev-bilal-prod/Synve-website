@@ -21,6 +21,16 @@ type Update = {
     created_at: string;
 };
 
+type Invoice = {
+    id: string;
+    amount: number;
+    currency: string;
+    status: string;
+    due_date: string;
+    description: string;
+    created_at: string;
+};
+
 type WebDetails = {
     pages: { name: string; status: string }[];
     design_approved: boolean;
@@ -66,6 +76,7 @@ export default function ClientDashboard() {
     const [projects, setProjects] = useState<Project[]>([]);
     const [selectedProject, setSelectedProject] = useState<Project | null>(null);
     const [updates, setUpdates] = useState<Update[]>([]);
+    const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [webDetails, setWebDetails] = useState<WebDetails | null>(null);
     const [iotDetails, setIotDetails] = useState<IotDetails | null>(null);
     const [mobileDetails, setMobileDetails] = useState<MobileDetails | null>(null);
@@ -74,60 +85,32 @@ export default function ClientDashboard() {
     const [loading, setLoading] = useState(true);
     const router = useRouter();
 
-    useEffect(() => {
-        checkUser();
-    }, []);
-
-    useEffect(() => {
-        if (selectedProject) fetchProjectDetails(selectedProject);
-    }, [selectedProject]);
+    useEffect(() => { checkUser(); }, []);
+    useEffect(() => { if (selectedProject) fetchProjectDetails(selectedProject); }, [selectedProject]);
 
     async function checkUser() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.push("/client/login"); return; }
-
         const { data: client } = await supabase.from("clients").select("*").eq("id", user.id).single();
         if (client) setClientName(client.name);
-
         const { data: projectsData } = await supabase.from("projects").select("*").eq("client_id", user.id).order("created_at", { ascending: false });
-        if (projectsData && projectsData.length > 0) {
-            setProjects(projectsData);
-            setSelectedProject(projectsData[0]);
-        }
+        if (projectsData && projectsData.length > 0) { setProjects(projectsData); setSelectedProject(projectsData[0]); }
+        const { data: invoicesData } = await supabase.from("invoices").select("*").eq("client_id", user.id).order("created_at", { ascending: false });
+        if (invoicesData) setInvoices(invoicesData);
         setLoading(false);
     }
 
     async function fetchProjectDetails(project: Project) {
-        setWebDetails(null);
-        setIotDetails(null);
-        setMobileDetails(null);
-        setManagedDetails(null);
-
+        setWebDetails(null); setIotDetails(null); setMobileDetails(null); setManagedDetails(null);
         const { data: updatesData } = await supabase.from("project_updates").select("*").eq("project_id", project.id).order("created_at", { ascending: false });
         if (updatesData) setUpdates(updatesData);
-
-        if (project.type === "web") {
-            const { data } = await supabase.from("web_details").select("*").eq("project_id", project.id).single();
-            if (data) setWebDetails(data);
-        }
-        if (project.type === "iot") {
-            const { data } = await supabase.from("iot_details").select("*").eq("project_id", project.id).single();
-            if (data) setIotDetails(data);
-        }
-        if (project.type === "mobile") {
-            const { data } = await supabase.from("mobile_details").select("*").eq("project_id", project.id).single();
-            if (data) setMobileDetails(data);
-        }
-        if (project.type === "managed") {
-            const { data } = await supabase.from("managed_details").select("*").eq("project_id", project.id).single();
-            if (data) setManagedDetails(data);
-        }
+        if (project.type === "web") { const { data } = await supabase.from("web_details").select("*").eq("project_id", project.id).single(); if (data) setWebDetails(data); }
+        if (project.type === "iot") { const { data } = await supabase.from("iot_details").select("*").eq("project_id", project.id).single(); if (data) setIotDetails(data); }
+        if (project.type === "mobile") { const { data } = await supabase.from("mobile_details").select("*").eq("project_id", project.id).single(); if (data) setMobileDetails(data); }
+        if (project.type === "managed") { const { data } = await supabase.from("managed_details").select("*").eq("project_id", project.id).single(); if (data) setManagedDetails(data); }
     }
 
-    async function handleLogout() {
-        await supabase.auth.signOut();
-        router.push("/client/login");
-    }
+    async function handleLogout() { await supabase.auth.signOut(); router.push("/client/login"); }
 
     const statusColor = (status: string) => {
         if (status === "in_progress") return "#0071e3";
@@ -146,81 +129,59 @@ export default function ClientDashboard() {
         <div style={{ minHeight: "100vh", background: "#f5f5f7" }}>
 
             {/* Navbar */}
-            <div style={{
-                background: "#ffffff", borderBottom: "1px solid rgba(0,0,0,0.06)",
-                padding: "20px 48px", display: "flex",
-                alignItems: "center", justifyContent: "space-between",
-            }}>
+            <div style={{ background: "#ffffff", borderBottom: "1px solid rgba(0,0,0,0.06)", padding: "20px 48px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <h1 style={{ fontFamily: "var(--font-cormorant)", fontSize: 28, fontWeight: 300, color: "#1d1d1f" }}>
                     Synve<span style={{ color: "#0071e3" }}>.</span>
                 </h1>
                 <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
-                    <span style={{ fontSize: 14, color: "#1d1d1f", fontFamily: "var(--font-outfit)" }}>
-                        👋 {clientName}
-                    </span>
-                    <button onClick={handleLogout} style={{
-                        fontSize: 13, color: "#ff3b30", background: "rgba(255,59,48,0.08)",
-                        border: "1px solid rgba(255,59,48,0.2)", padding: "8px 20px",
-                        borderRadius: 980, fontFamily: "var(--font-outfit)", cursor: "pointer",
-                    }}>Logout</button>
+                    <span style={{ fontSize: 14, color: "#1d1d1f", fontFamily: "var(--font-outfit)" }}>👋 {clientName}</span>
+                    <button onClick={handleLogout} style={{ fontSize: 13, color: "#ff3b30", background: "rgba(255,59,48,0.08)", border: "1px solid rgba(255,59,48,0.2)", padding: "8px 20px", borderRadius: 980, fontFamily: "var(--font-outfit)", cursor: "pointer" }}>Logout</button>
                 </div>
             </div>
 
             <div style={{ padding: "40px 48px", maxWidth: 1200, margin: "0 auto" }}>
-
                 {projects.length === 0 ? (
-                    <div style={{
-                        textAlign: "center", padding: "100px 40px",
-                        background: "#ffffff", borderRadius: 24,
-                        border: "1px solid rgba(0,0,0,0.06)",
-                    }}>
+                    <div style={{ textAlign: "center", padding: "100px 40px", background: "#ffffff", borderRadius: 24, border: "1px solid rgba(0,0,0,0.06)" }}>
                         <div style={{ fontSize: 48, marginBottom: 16 }}>🚀</div>
-                        <h2 style={{ fontFamily: "var(--font-cormorant)", fontSize: 32, fontWeight: 300, color: "#1d1d1f", marginBottom: 12 }}>
-                            No projects yet
-                        </h2>
-                        <p style={{ fontSize: 15, color: "#6e6e73", fontFamily: "var(--font-outfit)" }}>
-                            Your projects will appear here once Synve sets them up for you.
-                        </p>
+                        <h2 style={{ fontFamily: "var(--font-cormorant)", fontSize: 32, fontWeight: 300, color: "#1d1d1f", marginBottom: 12 }}>No projects yet</h2>
+                        <p style={{ fontSize: 15, color: "#6e6e73", fontFamily: "var(--font-outfit)" }}>Your projects will appear here once Synve sets them up for you.</p>
                     </div>
                 ) : (
                     <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 24 }}>
 
-                        {/* Project list sidebar */}
+                        {/* Sidebar */}
                         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                            <h3 style={{ fontFamily: "var(--font-outfit)", fontSize: 12, color: "#6e6e73", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>
-                                Your Projects
-                            </h3>
+                            <h3 style={{ fontFamily: "var(--font-outfit)", fontSize: 12, color: "#6e6e73", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Your Projects</h3>
                             {projects.map(project => (
-                                <div
-                                    key={project.id}
-                                    onClick={() => setSelectedProject(project)}
-                                    style={{
-                                        background: selectedProject?.id === project.id ? "#0071e3" : "#ffffff",
-                                        borderRadius: 16, padding: "20px",
-                                        border: "1px solid rgba(0,0,0,0.06)",
-                                        cursor: "pointer",
-                                        transition: "all 0.2s",
-                                    }}
-                                >
-                                    <div style={{ fontSize: 14, fontFamily: "var(--font-outfit)", fontWeight: 400, color: selectedProject?.id === project.id ? "white" : "#1d1d1f", marginBottom: 8 }}>
-                                        {project.title}
-                                    </div>
+                                <div key={project.id} onClick={() => setSelectedProject(project)} style={{ background: selectedProject?.id === project.id ? "#0071e3" : "#ffffff", borderRadius: 16, padding: "20px", border: "1px solid rgba(0,0,0,0.06)", cursor: "pointer", transition: "all 0.2s" }}>
+                                    <div style={{ fontSize: 14, fontFamily: "var(--font-outfit)", fontWeight: 400, color: selectedProject?.id === project.id ? "white" : "#1d1d1f", marginBottom: 8 }}>{project.title}</div>
                                     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                        <span style={{
-                                            fontSize: 11, padding: "3px 10px", borderRadius: 980,
-                                            background: selectedProject?.id === project.id ? "rgba(255,255,255,0.2)" : "rgba(0,113,227,0.1)",
-                                            color: selectedProject?.id === project.id ? "white" : "#0071e3",
-                                            fontFamily: "var(--font-outfit)",
-                                        }}>{project.type}</span>
-                                        <span style={{ fontSize: 11, color: selectedProject?.id === project.id ? "rgba(255,255,255,0.7)" : "#a1a1a6", fontFamily: "var(--font-outfit)" }}>
-                                            {project.progress}%
-                                        </span>
+                                        <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 980, background: selectedProject?.id === project.id ? "rgba(255,255,255,0.2)" : "rgba(0,113,227,0.1)", color: selectedProject?.id === project.id ? "white" : "#0071e3", fontFamily: "var(--font-outfit)" }}>{project.type}</span>
+                                        <span style={{ fontSize: 11, color: selectedProject?.id === project.id ? "rgba(255,255,255,0.7)" : "#a1a1a6", fontFamily: "var(--font-outfit)" }}>{project.progress}%</span>
                                     </div>
                                 </div>
                             ))}
+
+                            {/* Invoices summary in sidebar */}
+                            {invoices.length > 0 && (
+                                <div style={{ marginTop: 16 }}>
+                                    <h3 style={{ fontFamily: "var(--font-outfit)", fontSize: 12, color: "#6e6e73", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Invoices</h3>
+                                    {invoices.map(invoice => (
+                                        <div key={invoice.id} style={{ background: "#ffffff", borderRadius: 12, padding: "16px", border: `1px solid ${invoice.status === "paid" ? "rgba(52,199,89,0.2)" : invoice.status === "overdue" ? "rgba(255,59,48,0.2)" : "rgba(255,149,0,0.2)"}`, marginBottom: 8 }}>
+                                            <div style={{ fontSize: 13, color: "#1d1d1f", fontFamily: "var(--font-outfit)", fontWeight: 400, marginBottom: 4 }}>{invoice.currency} {invoice.amount.toLocaleString()}</div>
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                <span style={{ fontSize: 11, color: "#a1a1a6", fontFamily: "var(--font-outfit)" }}>
+                                                    {invoice.due_date ? new Date(invoice.due_date).toLocaleDateString("en-PK", { day: "numeric", month: "short" }) : "—"}
+                                                </span>
+                                                <span style={{ fontSize: 11, padding: "2px 10px", borderRadius: 980, background: invoice.status === "paid" ? "rgba(52,199,89,0.1)" : invoice.status === "overdue" ? "rgba(255,59,48,0.1)" : "rgba(255,149,0,0.1)", color: invoice.status === "paid" ? "#34c759" : invoice.status === "overdue" ? "#ff3b30" : "#ff9500", fontFamily: "var(--font-outfit)" }}>{invoice.status}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
-                        {/* Project details */}
+                        {/* Main content */}
                         {selectedProject && (
                             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
@@ -228,53 +189,29 @@ export default function ClientDashboard() {
                                 <div style={{ background: "#ffffff", borderRadius: 20, padding: "32px", border: "1px solid rgba(0,0,0,0.06)" }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
                                         <div>
-                                            <h2 style={{ fontFamily: "var(--font-cormorant)", fontSize: 32, fontWeight: 300, color: "#1d1d1f", marginBottom: 8 }}>
-                                                {selectedProject.title}
-                                            </h2>
-                                            <span style={{
-                                                fontSize: 12, padding: "4px 14px", borderRadius: 980,
-                                                background: `${statusColor(selectedProject.status)}15`,
-                                                color: statusColor(selectedProject.status),
-                                                fontFamily: "var(--font-outfit)",
-                                            }}>
-                                                {selectedProject.status.replace("_", " ")}
-                                            </span>
+                                            <h2 style={{ fontFamily: "var(--font-cormorant)", fontSize: 32, fontWeight: 300, color: "#1d1d1f", marginBottom: 8 }}>{selectedProject.title}</h2>
+                                            <span style={{ fontSize: 12, padding: "4px 14px", borderRadius: 980, background: `${statusColor(selectedProject.status)}15`, color: statusColor(selectedProject.status), fontFamily: "var(--font-outfit)" }}>{selectedProject.status.replace("_", " ")}</span>
                                         </div>
-                                        <div style={{ textAlign: "right" }}>
-                                            {selectedProject.deadline && (
-                                                <div>
-                                                    <div style={{ fontSize: 11, color: "#a1a1a6", fontFamily: "var(--font-outfit)", marginBottom: 4 }}>Deadline</div>
-                                                    <div style={{ fontSize: 14, color: "#1d1d1f", fontFamily: "var(--font-outfit)" }}>
-                                                        {new Date(selectedProject.deadline).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" })}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
+                                        {selectedProject.deadline && (
+                                            <div style={{ textAlign: "right" }}>
+                                                <div style={{ fontSize: 11, color: "#a1a1a6", fontFamily: "var(--font-outfit)", marginBottom: 4 }}>Deadline</div>
+                                                <div style={{ fontSize: 14, color: "#1d1d1f", fontFamily: "var(--font-outfit)" }}>{new Date(selectedProject.deadline).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" })}</div>
+                                            </div>
+                                        )}
                                     </div>
-
-                                    {/* Progress bar */}
                                     <div style={{ marginBottom: 8 }}>
                                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                                             <span style={{ fontSize: 13, color: "#6e6e73", fontFamily: "var(--font-outfit)" }}>Overall Progress</span>
                                             <span style={{ fontSize: 13, color: "#0071e3", fontFamily: "var(--font-outfit)", fontWeight: 400 }}>{selectedProject.progress}%</span>
                                         </div>
                                         <div style={{ height: 8, background: "rgba(0,0,0,0.06)", borderRadius: 4 }}>
-                                            <div style={{
-                                                width: `${selectedProject.progress}%`, height: "100%",
-                                                background: "linear-gradient(90deg, #0071e3, #00c6ff)",
-                                                borderRadius: 4, transition: "width 0.6s ease",
-                                            }} />
+                                            <div style={{ width: `${selectedProject.progress}%`, height: "100%", background: "linear-gradient(90deg, #0071e3, #00c6ff)", borderRadius: 4, transition: "width 0.6s ease" }} />
                                         </div>
                                     </div>
-
-                                    {selectedProject.notes && (
-                                        <p style={{ fontSize: 14, color: "#6e6e73", fontFamily: "var(--font-outfit)", marginTop: 16, lineHeight: 1.6 }}>
-                                            {selectedProject.notes}
-                                        </p>
-                                    )}
+                                    {selectedProject.notes && <p style={{ fontSize: 14, color: "#6e6e73", fontFamily: "var(--font-outfit)", marginTop: 16, lineHeight: 1.6 }}>{selectedProject.notes}</p>}
                                 </div>
 
-                                {/* Type specific details */}
+                                {/* Web details */}
                                 {selectedProject.type === "web" && webDetails && (
                                     <div style={{ background: "#ffffff", borderRadius: 20, padding: "32px", border: "1px solid rgba(0,0,0,0.06)" }}>
                                         <h3 style={{ fontFamily: "var(--font-cormorant)", fontSize: 24, fontWeight: 300, color: "#1d1d1f", marginBottom: 24 }}>Web Project Details</h3>
@@ -299,27 +236,18 @@ export default function ClientDashboard() {
                                                 <h4 style={{ fontSize: 13, color: "#6e6e73", fontFamily: "var(--font-outfit)", marginBottom: 12 }}>Pages</h4>
                                                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                                                     {webDetails.pages.map((page: any) => (
-                                                        <span key={page.name} style={{
-                                                            fontSize: 13, padding: "6px 16px", borderRadius: 980,
-                                                            background: page.status === "done" ? "rgba(52,199,89,0.1)" : page.status === "in_progress" ? "rgba(0,113,227,0.1)" : "rgba(0,0,0,0.06)",
-                                                            color: page.status === "done" ? "#34c759" : page.status === "in_progress" ? "#0071e3" : "#6e6e73",
-                                                            fontFamily: "var(--font-outfit)",
-                                                        }}>
+                                                        <span key={page.name} style={{ fontSize: 13, padding: "6px 16px", borderRadius: 980, background: page.status === "done" ? "rgba(52,199,89,0.1)" : page.status === "in_progress" ? "rgba(0,113,227,0.1)" : "rgba(0,0,0,0.06)", color: page.status === "done" ? "#34c759" : page.status === "in_progress" ? "#0071e3" : "#6e6e73", fontFamily: "var(--font-outfit)" }}>
                                                             {page.status === "done" ? "✅" : page.status === "in_progress" ? "🔄" : "⏳"} {page.name}
                                                         </span>
                                                     ))}
                                                 </div>
                                             </div>
                                         )}
-                                        {webDetails.live_url && (
-                                            <a href={webDetails.live_url} target="_blank" rel="noreferrer" style={{
-                                                display: "inline-block", marginTop: 20, fontSize: 14,
-                                                color: "#0071e3", fontFamily: "var(--font-outfit)",
-                                            }}>🔗 View Live Site →</a>
-                                        )}
+                                        {webDetails.live_url && <a href={webDetails.live_url} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 20, fontSize: 14, color: "#0071e3", fontFamily: "var(--font-outfit)" }}>🔗 View Live Site →</a>}
                                     </div>
                                 )}
 
+                                {/* IoT details */}
                                 {selectedProject.type === "iot" && iotDetails && (
                                     <div style={{ background: "#ffffff", borderRadius: 20, padding: "32px", border: "1px solid rgba(0,0,0,0.06)" }}>
                                         <h3 style={{ fontFamily: "var(--font-cormorant)", fontSize: 24, fontWeight: 300, color: "#1d1d1f", marginBottom: 24 }}>IoT Project Details</h3>
@@ -340,27 +268,18 @@ export default function ClientDashboard() {
                                                 <h4 style={{ fontSize: 13, color: "#6e6e73", fontFamily: "var(--font-outfit)", marginBottom: 12 }}>Sensors</h4>
                                                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                                                     {iotDetails.sensors.map((sensor: any) => (
-                                                        <span key={sensor.name} style={{
-                                                            fontSize: 13, padding: "6px 16px", borderRadius: 980,
-                                                            background: sensor.tested ? "rgba(52,199,89,0.1)" : "rgba(0,0,0,0.06)",
-                                                            color: sensor.tested ? "#34c759" : "#6e6e73",
-                                                            fontFamily: "var(--font-outfit)",
-                                                        }}>
+                                                        <span key={sensor.name} style={{ fontSize: 13, padding: "6px 16px", borderRadius: 980, background: sensor.tested ? "rgba(52,199,89,0.1)" : "rgba(0,0,0,0.06)", color: sensor.tested ? "#34c759" : "#6e6e73", fontFamily: "var(--font-outfit)" }}>
                                                             {sensor.tested ? "✅" : "⏳"} {sensor.name}
                                                         </span>
                                                     ))}
                                                 </div>
                                             </div>
                                         )}
-                                        {iotDetails.dashboard_url && (
-                                            <a href={iotDetails.dashboard_url} target="_blank" rel="noreferrer" style={{
-                                                display: "inline-block", marginTop: 20, fontSize: 14,
-                                                color: "#0071e3", fontFamily: "var(--font-outfit)",
-                                            }}>🔗 View IoT Dashboard →</a>
-                                        )}
+                                        {iotDetails.dashboard_url && <a href={iotDetails.dashboard_url} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 20, fontSize: 14, color: "#0071e3", fontFamily: "var(--font-outfit)" }}>🔗 View IoT Dashboard →</a>}
                                     </div>
                                 )}
 
+                                {/* Mobile details */}
                                 {selectedProject.type === "mobile" && mobileDetails && (
                                     <div style={{ background: "#ffffff", borderRadius: 20, padding: "32px", border: "1px solid rgba(0,0,0,0.06)" }}>
                                         <h3 style={{ fontFamily: "var(--font-cormorant)", fontSize: 24, fontWeight: 300, color: "#1d1d1f", marginBottom: 24 }}>Mobile App Details</h3>
@@ -382,12 +301,7 @@ export default function ClientDashboard() {
                                                 <h4 style={{ fontSize: 13, color: "#6e6e73", fontFamily: "var(--font-outfit)", marginBottom: 12 }}>Screens</h4>
                                                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                                                     {mobileDetails.screens.map((screen: any) => (
-                                                        <span key={screen.name} style={{
-                                                            fontSize: 13, padding: "6px 16px", borderRadius: 980,
-                                                            background: screen.status === "done" ? "rgba(52,199,89,0.1)" : screen.status === "in_progress" ? "rgba(0,113,227,0.1)" : "rgba(0,0,0,0.06)",
-                                                            color: screen.status === "done" ? "#34c759" : screen.status === "in_progress" ? "#0071e3" : "#6e6e73",
-                                                            fontFamily: "var(--font-outfit)",
-                                                        }}>
+                                                        <span key={screen.name} style={{ fontSize: 13, padding: "6px 16px", borderRadius: 980, background: screen.status === "done" ? "rgba(52,199,89,0.1)" : screen.status === "in_progress" ? "rgba(0,113,227,0.1)" : "rgba(0,0,0,0.06)", color: screen.status === "done" ? "#34c759" : screen.status === "in_progress" ? "#0071e3" : "#6e6e73", fontFamily: "var(--font-outfit)" }}>
                                                             {screen.status === "done" ? "✅" : screen.status === "in_progress" ? "🔄" : "⏳"} {screen.name}
                                                         </span>
                                                     ))}
@@ -402,6 +316,7 @@ export default function ClientDashboard() {
                                     </div>
                                 )}
 
+                                {/* Managed details */}
                                 {selectedProject.type === "managed" && managedDetails && (
                                     <div style={{ background: "#ffffff", borderRadius: 20, padding: "32px", border: "1px solid rgba(0,0,0,0.06)" }}>
                                         <h3 style={{ fontFamily: "var(--font-cormorant)", fontSize: 24, fontWeight: 300, color: "#1d1d1f", marginBottom: 24 }}>IT Managed Services</h3>
@@ -439,16 +354,9 @@ export default function ClientDashboard() {
                                     ) : (
                                         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                                             {updates.map(update => (
-                                                <div key={update.id} style={{
-                                                    padding: "20px", background: "#f5f5f7",
-                                                    borderRadius: 12, borderLeft: "3px solid #0071e3",
-                                                }}>
-                                                    <p style={{ fontSize: 14, color: "#1d1d1f", fontFamily: "var(--font-outfit)", lineHeight: 1.6, marginBottom: 8 }}>
-                                                        {update.message}
-                                                    </p>
-                                                    <span style={{ fontSize: 11, color: "#a1a1a6", fontFamily: "var(--font-outfit)" }}>
-                                                        {new Date(update.created_at).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" })}
-                                                    </span>
+                                                <div key={update.id} style={{ padding: "20px", background: "#f5f5f7", borderRadius: 12, borderLeft: "3px solid #0071e3" }}>
+                                                    <p style={{ fontSize: 14, color: "#1d1d1f", fontFamily: "var(--font-outfit)", lineHeight: 1.6, marginBottom: 8 }}>{update.message}</p>
+                                                    <span style={{ fontSize: 11, color: "#a1a1a6", fontFamily: "var(--font-outfit)" }}>{new Date(update.created_at).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" })}</span>
                                                 </div>
                                             ))}
                                         </div>
