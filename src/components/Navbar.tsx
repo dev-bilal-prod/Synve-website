@@ -24,10 +24,15 @@ export default function Navbar() {
                 borderBottom: `1px solid ${scrolled ? "rgba(0,0,0,0.08)" : "transparent"}`,
                 transition: "all 0.4s ease",
             }}>
-                <Link href="/">
-                    <img src="/logo.png" alt="Synve" style={{ height: 36, width: "auto" }} />
+                {/* Logo */}
+                <Link href="/" style={{
+                    fontFamily: "var(--font-cormorant)",
+                    fontSize: 28, fontWeight: 400,
+                    letterSpacing: "0.08em", color: "#1d1d1f",
+                    textDecoration: "none",
+                }}>
+                    Synve<span style={{ color: "#0071e3" }}>.</span>
                 </Link>
-
 
                 {/* Desktop Links */}
                 <ul style={{ display: "flex", gap: 48, listStyle: "none", margin: 0 }} className="desktop-nav">
