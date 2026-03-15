@@ -84,6 +84,8 @@ export default function AdminDashboard() {
     const [replyText, setReplyText] = useState<Record<string, string>>({});
     const [updateText, setUpdateText] = useState<Record<string, string>>({});
     const [expandedProject, setExpandedProject] = useState<string | null>(null);
+    const [editingProject, setEditingProject] = useState<Project | null>(null);
+    const [editDetails, setEditDetails] = useState<any>(null);
     const [user, setUser] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
@@ -175,6 +177,54 @@ export default function AdminDashboard() {
         fetchUpdates();
     }
 
+    async function openEditProject(project: Project) {
+        setEditingProject(project);
+        // Fetch type-specific details
+        if (project.type === "web") {
+            const { data } = await supabase.from("web_details").select("*").eq("project_id", project.id).single();
+            setEditDetails(data || { pages: [], design_approved: false, revisions_used: 0, revisions_total: 3, testing_done: false, live: false, live_url: "" });
+        } else if (project.type === "iot") {
+            const { data } = await supabase.from("iot_details").select("*").eq("project_id", project.id).single();
+            setEditDetails(data || { hardware_status: "pending", firmware_version: "v0.0.1", sensors: [], dashboard_live: false, dashboard_url: "", deployed: false, deployment_location: "" });
+        } else if (project.type === "mobile") {
+            const { data } = await supabase.from("mobile_details").select("*").eq("project_id", project.id).single();
+            setEditDetails(data || { screens: [], android_status: "in_progress", ios_status: "in_progress", beta_testing: false, beta_link: "", android_live: false, ios_live: false, play_store_link: "", app_store_link: "" });
+        } else if (project.type === "managed") {
+            const { data } = await supabase.from("managed_details").select("*").eq("project_id", project.id).single();
+            setEditDetails(data || { uptime_percent: 100, tickets_open: 0, tickets_resolved: 0, this_month_summary: "", next_renewal: "", services_included: [] });
+        }
+    }
+
+    async function saveProject(e: React.FormEvent) {
+        e.preventDefault();
+        if (!editingProject) return;
+
+        // Update main project
+        await supabase.from("projects").update({
+            title: editingProject.title,
+            status: editingProject.status,
+            progress: editingProject.progress,
+            start_date: editingProject.start_date,
+            deadline: editingProject.deadline,
+            notes: editingProject.notes,
+        }).eq("id", editingProject.id);
+
+        // Update type-specific details
+        if (editingProject.type === "web") {
+            await supabase.from("web_details").update(editDetails).eq("project_id", editingProject.id);
+        } else if (editingProject.type === "iot") {
+            await supabase.from("iot_details").update(editDetails).eq("project_id", editingProject.id);
+        } else if (editingProject.type === "mobile") {
+            await supabase.from("mobile_details").update(editDetails).eq("project_id", editingProject.id);
+        } else if (editingProject.type === "managed") {
+            await supabase.from("managed_details").update(editDetails).eq("project_id", editingProject.id);
+        }
+
+        setEditingProject(null);
+        setEditDetails(null);
+        fetchProjects();
+    }
+
     async function addClient(e: React.FormEvent) {
         e.preventDefault();
         const res = await fetch("/api/create-client", {
@@ -235,10 +285,7 @@ export default function AdminDashboard() {
     async function addUpdate(projectId: string) {
         const text = updateText[projectId];
         if (!text?.trim()) return;
-        await supabase.from("project_updates").insert([{
-            project_id: projectId,
-            message: text.trim(),
-        }]);
+        await supabase.from("project_updates").insert([{ project_id: projectId, message: text.trim() }]);
         setUpdateText({ ...updateText, [projectId]: "" });
         fetchUpdates();
     }
@@ -268,6 +315,14 @@ export default function AdminDashboard() {
         letterSpacing: "0.04em", marginBottom: 6,
         display: "block",
     };
+
+    const checkboxRow = (label: string, checked: boolean, onChange: (v: boolean) => void) => (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid rgba(0,0,0,0.04)" }}>
+            <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)}
+                style={{ width: 18, height: 18, cursor: "pointer", accentColor: "#0071e3" }} />
+            <label style={{ fontSize: 14, color: "#1d1d1f", fontFamily: "var(--font-outfit)", cursor: "pointer" }}>{label}</label>
+        </div>
+    );
 
     return (
         <div style={{ minHeight: "100vh", background: "#f5f5f7" }}>
@@ -410,7 +465,6 @@ export default function AdminDashboard() {
 
                                 return (
                                     <div key={project.id} style={{ background: "#ffffff", borderRadius: 20, border: "1px solid rgba(0,0,0,0.06)", overflow: "hidden" }}>
-                                        {/* Project row */}
                                         <div style={{ padding: "24px 28px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                                             <div style={{ display: "flex", alignItems: "center", gap: 20, flex: 1 }}>
                                                 <div>
@@ -427,6 +481,7 @@ export default function AdminDashboard() {
                                                 </div>
                                             </div>
                                             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                                                <button onClick={() => openEditProject(project)} style={{ fontSize: 12, color: "#34c759", background: "rgba(52,199,89,0.08)", border: "1px solid rgba(52,199,89,0.2)", padding: "6px 14px", borderRadius: 980, fontFamily: "var(--font-outfit)", cursor: "pointer" }}>Edit</button>
                                                 <button onClick={() => setExpandedProject(isExpanded ? null : project.id)} style={{ fontSize: 12, color: "#0071e3", background: "rgba(0,113,227,0.08)", border: "1px solid rgba(0,113,227,0.2)", padding: "6px 14px", borderRadius: 980, fontFamily: "var(--font-outfit)", cursor: "pointer" }}>
                                                     {isExpanded ? "Hide Updates" : `Updates (${projectUpdates.length})`}
                                                 </button>
@@ -434,12 +489,9 @@ export default function AdminDashboard() {
                                             </div>
                                         </div>
 
-                                        {/* Expanded updates section */}
                                         {isExpanded && (
                                             <div style={{ borderTop: "1px solid rgba(0,0,0,0.06)", padding: "24px 28px", background: "#fafafa" }}>
                                                 <h4 style={{ fontSize: 13, color: "#6e6e73", fontFamily: "var(--font-outfit)", marginBottom: 16, letterSpacing: "0.06em", textTransform: "uppercase" }}>Project Updates</h4>
-
-                                                {/* Add update input */}
                                                 <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
                                                     <input
                                                         value={updateText[project.id] || ""}
@@ -450,8 +502,6 @@ export default function AdminDashboard() {
                                                     />
                                                     <button onClick={() => addUpdate(project.id)} style={{ fontSize: 13, background: "#0071e3", color: "white", padding: "10px 20px", border: "none", fontFamily: "var(--font-outfit)", borderRadius: 10, cursor: "pointer", whiteSpace: "nowrap" }}>Post Update</button>
                                                 </div>
-
-                                                {/* Updates list */}
                                                 {projectUpdates.length === 0 ? (
                                                     <p style={{ fontSize: 13, color: "#a1a1a6", fontFamily: "var(--font-outfit)" }}>No updates posted yet.</p>
                                                 ) : (
@@ -462,7 +512,7 @@ export default function AdminDashboard() {
                                                                     <p style={{ fontSize: 14, color: "#1d1d1f", fontFamily: "var(--font-outfit)", lineHeight: 1.5, marginBottom: 4 }}>{update.message}</p>
                                                                     <span style={{ fontSize: 11, color: "#a1a1a6", fontFamily: "var(--font-outfit)" }}>{new Date(update.created_at).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" })}</span>
                                                                 </div>
-                                                                <button onClick={() => deleteUpdate(update.id)} style={{ fontSize: 11, color: "#ff3b30", background: "transparent", border: "none", cursor: "pointer", fontFamily: "var(--font-outfit)", marginLeft: 16, whiteSpace: "nowrap" }}>Delete</button>
+                                                                <button onClick={() => deleteUpdate(update.id)} style={{ fontSize: 11, color: "#ff3b30", background: "transparent", border: "none", cursor: "pointer", fontFamily: "var(--font-outfit)", marginLeft: 16 }}>Delete</button>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -569,26 +619,167 @@ export default function AdminDashboard() {
                                         ))}
                                     </div>
                                     <div style={{ padding: "16px 28px", borderTop: "1px solid rgba(0,0,0,0.06)", display: "flex", gap: 12 }}>
-                                        <input
-                                            value={replyText[project.id] || ""}
-                                            onChange={e => setReplyText({ ...replyText, [project.id]: e.target.value })}
-                                            placeholder={`Reply to ${client?.name}...`}
-                                            onKeyDown={e => { if (e.key === "Enter") sendReply(project.id, project.client_id); }}
-                                            style={{ flex: 1, padding: "10px 16px", borderRadius: 10, border: "1.5px solid rgba(0,0,0,0.1)", fontSize: 14, fontFamily: "var(--font-outfit)", color: "#1d1d1f", background: "#f5f5f7", outline: "none" }}
-                                        />
+                                        <input value={replyText[project.id] || ""} onChange={e => setReplyText({ ...replyText, [project.id]: e.target.value })} placeholder={`Reply to ${client?.name}...`} onKeyDown={e => { if (e.key === "Enter") sendReply(project.id, project.client_id); }} style={{ flex: 1, padding: "10px 16px", borderRadius: 10, border: "1.5px solid rgba(0,0,0,0.1)", fontSize: 14, fontFamily: "var(--font-outfit)", color: "#1d1d1f", background: "#f5f5f7", outline: "none" }} />
                                         <button onClick={() => sendReply(project.id, project.client_id)} style={{ fontSize: 13, background: "#0071e3", color: "white", padding: "10px 20px", border: "none", fontFamily: "var(--font-outfit)", borderRadius: 10, cursor: "pointer" }}>Reply →</button>
                                     </div>
                                 </div>
                             );
                         })}
                         {projects.every(p => messages.filter(m => m.project_id === p.id).length === 0) && (
-                            <div style={{ textAlign: "center", padding: "60px", background: "#ffffff", borderRadius: 20, border: "1px solid rgba(0,0,0,0.06)", color: "#6e6e73", fontFamily: "var(--font-outfit)" }}>
-                                No messages yet. Messages from clients will appear here.
-                            </div>
+                            <div style={{ textAlign: "center", padding: "60px", background: "#ffffff", borderRadius: 20, border: "1px solid rgba(0,0,0,0.06)", color: "#6e6e73", fontFamily: "var(--font-outfit)" }}>No messages yet.</div>
                         )}
                     </div>
                 )}
             </div>
+
+            {/* EDIT PROJECT MODAL */}
+            {editingProject && (
+                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, overflowY: "auto", padding: "40px 20px" }} onClick={() => setEditingProject(null)}>
+                    <div style={{ background: "#ffffff", borderRadius: 24, padding: "48px", width: "100%", maxWidth: 640, boxShadow: "0 20px 60px rgba(0,0,0,0.2)", margin: "auto" }} onClick={e => e.stopPropagation()}>
+                        <h2 style={{ fontFamily: "var(--font-cormorant)", fontSize: 28, fontWeight: 300, color: "#1d1d1f", marginBottom: 32 }}>
+                            Edit Project — {editingProject.title}
+                        </h2>
+                        <form onSubmit={saveProject} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+                            {/* Basic info */}
+                            <div style={{ padding: "20px", background: "#f5f5f7", borderRadius: 12, display: "flex", flexDirection: "column", gap: 16 }}>
+                                <h3 style={{ fontSize: 13, color: "#6e6e73", fontFamily: "var(--font-outfit)", letterSpacing: "0.06em", textTransform: "uppercase" }}>Basic Info</h3>
+                                <div><label style={labelStyle}>Title</label><input style={inputStyle} value={editingProject.title} onChange={e => setEditingProject({ ...editingProject, title: e.target.value })} /></div>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                                    <div>
+                                        <label style={labelStyle}>Status</label>
+                                        <select style={inputStyle} value={editingProject.status} onChange={e => setEditingProject({ ...editingProject, status: e.target.value })}>
+                                            <option value="in_progress">In Progress</option>
+                                            <option value="on_hold">On Hold</option>
+                                            <option value="completed">Completed</option>
+                                            <option value="cancelled">Cancelled</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style={labelStyle}>Progress (%)</label>
+                                        <input type="number" min="0" max="100" style={inputStyle} value={editingProject.progress} onChange={e => setEditingProject({ ...editingProject, progress: parseInt(e.target.value) || 0 })} />
+                                    </div>
+                                </div>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                                    <div><label style={labelStyle}>Start Date</label><input type="date" style={inputStyle} value={editingProject.start_date || ""} onChange={e => setEditingProject({ ...editingProject, start_date: e.target.value })} /></div>
+                                    <div><label style={labelStyle}>Deadline</label><input type="date" style={inputStyle} value={editingProject.deadline || ""} onChange={e => setEditingProject({ ...editingProject, deadline: e.target.value })} /></div>
+                                </div>
+                                <div><label style={labelStyle}>Notes</label><textarea style={{ ...inputStyle, resize: "vertical", minHeight: 80 }} value={editingProject.notes || ""} onChange={e => setEditingProject({ ...editingProject, notes: e.target.value })} /></div>
+                            </div>
+
+                            {/* Web details */}
+                            {editingProject.type === "web" && editDetails && (
+                                <div style={{ padding: "20px", background: "rgba(0,113,227,0.04)", borderRadius: 12, border: "1px solid rgba(0,113,227,0.1)", display: "flex", flexDirection: "column", gap: 12 }}>
+                                    <h3 style={{ fontSize: 13, color: "#0071e3", fontFamily: "var(--font-outfit)", letterSpacing: "0.06em", textTransform: "uppercase" }}>Web Details</h3>
+                                    {checkboxRow("Design Approved", editDetails.design_approved, v => setEditDetails({ ...editDetails, design_approved: v }))}
+                                    {checkboxRow("Testing Done", editDetails.testing_done, v => setEditDetails({ ...editDetails, testing_done: v }))}
+                                    {checkboxRow("Site is Live", editDetails.live, v => setEditDetails({ ...editDetails, live: v }))}
+                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 8 }}>
+                                        <div><label style={labelStyle}>Revisions Used</label><input type="number" style={inputStyle} value={editDetails.revisions_used} onChange={e => setEditDetails({ ...editDetails, revisions_used: parseInt(e.target.value) || 0 })} /></div>
+                                        <div><label style={labelStyle}>Revisions Total</label><input type="number" style={inputStyle} value={editDetails.revisions_total} onChange={e => setEditDetails({ ...editDetails, revisions_total: parseInt(e.target.value) || 0 })} /></div>
+                                    </div>
+                                    <div><label style={labelStyle}>Live URL</label><input style={inputStyle} value={editDetails.live_url || ""} onChange={e => setEditDetails({ ...editDetails, live_url: e.target.value })} placeholder="https://..." /></div>
+                                    <div>
+                                        <label style={labelStyle}>Pages (JSON) — e.g. [&#123;"name":"Home","status":"done"&#125;]</label>
+                                        <textarea style={{ ...inputStyle, resize: "vertical", minHeight: 80, fontSize: 12 }}
+                                            value={typeof editDetails.pages === "string" ? editDetails.pages : JSON.stringify(editDetails.pages || [])}
+                                            onChange={e => { try { setEditDetails({ ...editDetails, pages: JSON.parse(e.target.value) }); } catch { setEditDetails({ ...editDetails, pages: e.target.value }); } }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* IoT details */}
+                            {editingProject.type === "iot" && editDetails && (
+                                <div style={{ padding: "20px", background: "rgba(52,199,89,0.04)", borderRadius: 12, border: "1px solid rgba(52,199,89,0.1)", display: "flex", flexDirection: "column", gap: 12 }}>
+                                    <h3 style={{ fontSize: 13, color: "#34c759", fontFamily: "var(--font-outfit)", letterSpacing: "0.06em", textTransform: "uppercase" }}>IoT Details</h3>
+                                    <div>
+                                        <label style={labelStyle}>Hardware Status</label>
+                                        <select style={inputStyle} value={editDetails.hardware_status} onChange={e => setEditDetails({ ...editDetails, hardware_status: e.target.value })}>
+                                            <option value="pending">Pending</option>
+                                            <option value="ordered">Ordered</option>
+                                            <option value="received">Received</option>
+                                            <option value="assembled">Assembled</option>
+                                            <option value="deployed">Deployed</option>
+                                        </select>
+                                    </div>
+                                    <div><label style={labelStyle}>Firmware Version</label><input style={inputStyle} value={editDetails.firmware_version || ""} onChange={e => setEditDetails({ ...editDetails, firmware_version: e.target.value })} placeholder="v1.0.0" /></div>
+                                    {checkboxRow("Dashboard Live", editDetails.dashboard_live, v => setEditDetails({ ...editDetails, dashboard_live: v }))}
+                                    {checkboxRow("Deployed", editDetails.deployed, v => setEditDetails({ ...editDetails, deployed: v }))}
+                                    <div><label style={labelStyle}>Dashboard URL</label><input style={inputStyle} value={editDetails.dashboard_url || ""} onChange={e => setEditDetails({ ...editDetails, dashboard_url: e.target.value })} placeholder="https://..." /></div>
+                                    <div><label style={labelStyle}>Deployment Location</label><input style={inputStyle} value={editDetails.deployment_location || ""} onChange={e => setEditDetails({ ...editDetails, deployment_location: e.target.value })} /></div>
+                                    <div>
+                                        <label style={labelStyle}>Sensors (JSON) — e.g. [&#123;"name":"Temp","tested":true&#125;]</label>
+                                        <textarea style={{ ...inputStyle, resize: "vertical", minHeight: 80, fontSize: 12 }}
+                                            value={typeof editDetails.sensors === "string" ? editDetails.sensors : JSON.stringify(editDetails.sensors || [])}
+                                            onChange={e => { try { setEditDetails({ ...editDetails, sensors: JSON.parse(e.target.value) }); } catch { setEditDetails({ ...editDetails, sensors: e.target.value }); } }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Mobile details */}
+                            {editingProject.type === "mobile" && editDetails && (
+                                <div style={{ padding: "20px", background: "rgba(255,149,0,0.04)", borderRadius: 12, border: "1px solid rgba(255,149,0,0.1)", display: "flex", flexDirection: "column", gap: 12 }}>
+                                    <h3 style={{ fontSize: 13, color: "#ff9500", fontFamily: "var(--font-outfit)", letterSpacing: "0.06em", textTransform: "uppercase" }}>Mobile Details</h3>
+                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                                        <div>
+                                            <label style={labelStyle}>Android Status</label>
+                                            <select style={inputStyle} value={editDetails.android_status} onChange={e => setEditDetails({ ...editDetails, android_status: e.target.value })}>
+                                                <option value="in_progress">In Progress</option>
+                                                <option value="testing">Testing</option>
+                                                <option value="submitted">Submitted</option>
+                                                <option value="live">Live</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label style={labelStyle}>iOS Status</label>
+                                            <select style={inputStyle} value={editDetails.ios_status} onChange={e => setEditDetails({ ...editDetails, ios_status: e.target.value })}>
+                                                <option value="in_progress">In Progress</option>
+                                                <option value="testing">Testing</option>
+                                                <option value="submitted">Submitted</option>
+                                                <option value="live">Live</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    {checkboxRow("Beta Testing Active", editDetails.beta_testing, v => setEditDetails({ ...editDetails, beta_testing: v }))}
+                                    {checkboxRow("Android Live", editDetails.android_live, v => setEditDetails({ ...editDetails, android_live: v }))}
+                                    {checkboxRow("iOS Live", editDetails.ios_live, v => setEditDetails({ ...editDetails, ios_live: v }))}
+                                    <div><label style={labelStyle}>Beta Link</label><input style={inputStyle} value={editDetails.beta_link || ""} onChange={e => setEditDetails({ ...editDetails, beta_link: e.target.value })} /></div>
+                                    <div><label style={labelStyle}>Play Store Link</label><input style={inputStyle} value={editDetails.play_store_link || ""} onChange={e => setEditDetails({ ...editDetails, play_store_link: e.target.value })} /></div>
+                                    <div><label style={labelStyle}>App Store Link</label><input style={inputStyle} value={editDetails.app_store_link || ""} onChange={e => setEditDetails({ ...editDetails, app_store_link: e.target.value })} /></div>
+                                    <div>
+                                        <label style={labelStyle}>Screens (JSON) — e.g. [&#123;"name":"Login","status":"done"&#125;]</label>
+                                        <textarea style={{ ...inputStyle, resize: "vertical", minHeight: 80, fontSize: 12 }}
+                                            value={typeof editDetails.screens === "string" ? editDetails.screens : JSON.stringify(editDetails.screens || [])}
+                                            onChange={e => { try { setEditDetails({ ...editDetails, screens: JSON.parse(e.target.value) }); } catch { setEditDetails({ ...editDetails, screens: e.target.value }); } }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Managed details */}
+                            {editingProject.type === "managed" && editDetails && (
+                                <div style={{ padding: "20px", background: "rgba(175,82,222,0.04)", borderRadius: 12, border: "1px solid rgba(175,82,222,0.1)", display: "flex", flexDirection: "column", gap: 12 }}>
+                                    <h3 style={{ fontSize: 13, color: "#af52de", fontFamily: "var(--font-outfit)", letterSpacing: "0.06em", textTransform: "uppercase" }}>Managed IT Details</h3>
+                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                                        <div><label style={labelStyle}>Uptime %</label><input type="number" style={inputStyle} value={editDetails.uptime_percent} onChange={e => setEditDetails({ ...editDetails, uptime_percent: parseFloat(e.target.value) || 100 })} /></div>
+                                        <div><label style={labelStyle}>Open Tickets</label><input type="number" style={inputStyle} value={editDetails.tickets_open} onChange={e => setEditDetails({ ...editDetails, tickets_open: parseInt(e.target.value) || 0 })} /></div>
+                                        <div><label style={labelStyle}>Resolved Tickets</label><input type="number" style={inputStyle} value={editDetails.tickets_resolved} onChange={e => setEditDetails({ ...editDetails, tickets_resolved: parseInt(e.target.value) || 0 })} /></div>
+                                    </div>
+                                    <div><label style={labelStyle}>This Month Summary</label><textarea style={{ ...inputStyle, resize: "vertical", minHeight: 80 }} value={editDetails.this_month_summary || ""} onChange={e => setEditDetails({ ...editDetails, this_month_summary: e.target.value })} /></div>
+                                    <div><label style={labelStyle}>Next Renewal Date</label><input type="date" style={inputStyle} value={editDetails.next_renewal || ""} onChange={e => setEditDetails({ ...editDetails, next_renewal: e.target.value })} /></div>
+                                </div>
+                            )}
+
+                            <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+                                <button type="button" onClick={() => setEditingProject(null)} style={{ flex: 1, padding: "14px", borderRadius: 980, border: "1.5px solid rgba(0,0,0,0.1)", background: "transparent", fontSize: 14, fontFamily: "var(--font-outfit)", cursor: "pointer", color: "#6e6e73" }}>Cancel</button>
+                                <button type="submit" style={{ flex: 1, padding: "14px", borderRadius: 980, border: "none", background: "#0071e3", fontSize: 14, fontFamily: "var(--font-outfit)", cursor: "pointer", color: "white" }}>Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* Add Client Modal */}
             {showAddClient && (
