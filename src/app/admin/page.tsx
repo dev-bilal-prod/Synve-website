@@ -69,7 +69,7 @@ export default function AdminDashboard() {
     const [showAddProject, setShowAddProject] = useState(false);
     const [showAddInvoice, setShowAddInvoice] = useState(false);
 
-    const [clientForm, setClientForm] = useState({ name: "", email: "", phone: "", company: "" });
+    const [clientForm, setClientForm] = useState({ name: "", email: "", phone: "", company: "", password: "" });
     const [projectForm, setProjectForm] = useState({ client_id: "", title: "", type: "web", status: "in_progress", progress: 0, start_date: "", deadline: "", notes: "" });
     const [invoiceForm, setInvoiceForm] = useState({ project_id: "", client_id: "", amount: 0, currency: "PKR", due_date: "", description: "" });
 
@@ -143,7 +143,7 @@ export default function AdminDashboard() {
         });
         const data = await res.json();
         if (data.error) { alert("Error: " + data.error); return; }
-        setClientForm({ name: "", email: "", phone: "", company: "" });
+        setClientForm({ name: "", email: "", phone: "", company: "", password: "" });
         setShowAddClient(false);
         fetchClients();
     }
@@ -392,7 +392,6 @@ export default function AdminDashboard() {
                             <button onClick={() => setShowAddInvoice(true)} style={{ fontSize: 14, background: "#0071e3", color: "white", padding: "12px 28px", border: "none", borderRadius: 980, fontFamily: "var(--font-outfit)", cursor: "pointer" }}>+ Create Invoice</button>
                         </div>
 
-                        {/* Invoice stats */}
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
                             {[
                                 { label: "Total Invoiced", value: `PKR ${invoices.reduce((a, b) => a + b.amount, 0).toLocaleString()}`, color: "#0071e3" },
@@ -469,6 +468,11 @@ export default function AdminDashboard() {
                             <div><label style={labelStyle}>Email</label><input required type="email" style={inputStyle} value={clientForm.email} onChange={e => setClientForm({ ...clientForm, email: e.target.value })} placeholder="client@email.com" /></div>
                             <div><label style={labelStyle}>Phone</label><input style={inputStyle} value={clientForm.phone} onChange={e => setClientForm({ ...clientForm, phone: e.target.value })} placeholder="+92 300 0000000" /></div>
                             <div><label style={labelStyle}>Company</label><input style={inputStyle} value={clientForm.company} onChange={e => setClientForm({ ...clientForm, company: e.target.value })} placeholder="Company name" /></div>
+                            <div>
+                                <label style={labelStyle}>Password</label>
+                                <input required type="text" style={inputStyle} value={clientForm.password} onChange={e => setClientForm({ ...clientForm, password: e.target.value })} placeholder="Set a password for this client" />
+                                <p style={{ fontSize: 11, color: "#a1a1a6", fontFamily: "var(--font-outfit)", marginTop: 6 }}>Share this with the client via WhatsApp</p>
+                            </div>
                             <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
                                 <button type="button" onClick={() => setShowAddClient(false)} style={{ flex: 1, padding: "14px", borderRadius: 980, border: "1.5px solid rgba(0,0,0,0.1)", background: "transparent", fontSize: 14, fontFamily: "var(--font-outfit)", cursor: "pointer", color: "#6e6e73" }}>Cancel</button>
                                 <button type="submit" style={{ flex: 1, padding: "14px", borderRadius: 980, border: "none", background: "#0071e3", fontSize: 14, fontFamily: "var(--font-outfit)", cursor: "pointer", color: "white" }}>Add Client</button>
