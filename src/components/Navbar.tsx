@@ -27,10 +27,10 @@ export default function Navbar() {
             <Link href="/" style={{
                 fontFamily: "var(--font-cormorant)",
                 fontSize: 28, fontWeight: 400,
-                letterSpacing: "0.08em", color: "var(--text-primary)",
+                letterSpacing: "0.08em", color: "#1d1d1f",
                 textDecoration: "none",
             }}>
-                Synve<span style={{ color: "var(--accent)" }}>.</span>
+                Synve<span style={{ color: "#0071e3" }}>.</span>
             </Link>
 
             {/* Links */}
@@ -44,12 +44,12 @@ export default function Navbar() {
                     <li key={link.label}>
                         <Link href={link.href} style={{
                             fontSize: 13, letterSpacing: "0.02em",
-                            color: "var(--text-secondary)",
+                            color: "#6e6e73",
                             textDecoration: "none", fontFamily: "var(--font-outfit)",
                             fontWeight: 400, transition: "color 0.25s",
                         }}
-                            onMouseEnter={e => (e.currentTarget.style.color = "var(--text-primary)")}
-                            onMouseLeave={e => (e.currentTarget.style.color = "var(--text-secondary)")}
+                            onMouseEnter={e => (e.currentTarget.style.color = "#1d1d1f")}
+                            onMouseLeave={e => (e.currentTarget.style.color = "#6e6e73")}
                         >
                             {link.label}
                         </Link>
@@ -57,21 +57,39 @@ export default function Navbar() {
                 ))}
             </ul>
 
-            {/* CTA */}
-            <Link href="#contact" style={{
-                fontSize: 13, letterSpacing: "0.01em",
-                color: "white",
-                background: "var(--accent)",
-                padding: "10px 24px", textDecoration: "none",
-                fontFamily: "var(--font-outfit)", fontWeight: 400,
-                borderRadius: 980,
-                transition: "all 0.25s", display: "inline-block",
-            }}
-                onMouseEnter={e => { e.currentTarget.style.background = "var(--accent-hover)"; e.currentTarget.style.transform = "scale(1.02)"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "var(--accent)"; e.currentTarget.style.transform = "scale(1)"; }}
-            >
-                Get a Quote
-            </Link>
+            {/* Buttons */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <Link href="/client/login" style={{
+                    fontSize: 13, letterSpacing: "0.01em",
+                    color: "#0071e3",
+                    background: "rgba(0,113,227,0.08)",
+                    border: "1px solid rgba(0,113,227,0.2)",
+                    padding: "10px 20px", textDecoration: "none",
+                    fontFamily: "var(--font-outfit)", fontWeight: 400,
+                    borderRadius: 980,
+                    transition: "all 0.25s", display: "inline-block",
+                }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "rgba(0,113,227,0.14)"; e.currentTarget.style.transform = "scale(1.02)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "rgba(0,113,227,0.08)"; e.currentTarget.style.transform = "scale(1)"; }}
+                >
+                    Client Login
+                </Link>
+
+                <Link href="#contact" style={{
+                    fontSize: 13, letterSpacing: "0.01em",
+                    color: "white",
+                    background: "#0071e3",
+                    padding: "10px 24px", textDecoration: "none",
+                    fontFamily: "var(--font-outfit)", fontWeight: 400,
+                    borderRadius: 980,
+                    transition: "all 0.25s", display: "inline-block",
+                }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "#0077ed"; e.currentTarget.style.transform = "scale(1.02)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "#0071e3"; e.currentTarget.style.transform = "scale(1)"; }}
+                >
+                    Get a Quote
+                </Link>
+            </div>
         </nav>
     );
 }
