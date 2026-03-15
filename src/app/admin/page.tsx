@@ -117,8 +117,12 @@ export default function AdminDashboard() {
     }
 
     async function deleteClient(id: string) {
-        if (!confirm("Delete this client?")) return;
-        await supabase.from("clients").delete().eq("id", id);
+        if (!confirm("Delete this client? This will also delete their projects.")) return;
+        await fetch("/api/delete-client", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clientId: id }),
+        });
         fetchClients();
     }
 
