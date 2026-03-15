@@ -57,6 +57,13 @@ type Message = {
     created_at: string;
 };
 
+type Update = {
+    id: string;
+    project_id: string;
+    message: string;
+    created_at: string;
+};
+
 const statusColors: Record<string, string> = {
     new: "#0071e3",
     contacted: "#ff9500",
@@ -73,7 +80,10 @@ export default function AdminDashboard() {
     const [projects, setProjects] = useState<Project[]>([]);
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [messages, setMessages] = useState<Message[]>([]);
+    const [updates, setUpdates] = useState<Update[]>([]);
     const [replyText, setReplyText] = useState<Record<string, string>>({});
+    const [updateText, setUpdateText] = useState<Record<string, string>>({});
+    const [expandedProject, setExpandedProject] = useState<string | null>(null);
     const [user, setUser] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
@@ -93,7 +103,7 @@ export default function AdminDashboard() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.push("/admin/login"); return; }
         setUser(user);
-        await Promise.all([fetchLeads(), fetchClients(), fetchProjects(), fetchInvoices(), fetchMessages()]);
+        await Promise.all([fetchLeads(), fetchClients(), fetchProjects(), fetchInvoices(), fetchMessages(), fetchUpdates()]);
         setLoading(false);
     }
 
@@ -120,6 +130,11 @@ export default function AdminDashboard() {
     async function fetchMessages() {
         const { data } = await supabase.from("messages").select("*").order("created_at", { ascending: true });
         if (data) setMessages(data);
+    }
+
+    async function fetchUpdates() {
+        const { data } = await supabase.from("project_updates").select("*").order("created_at", { ascending: false });
+        if (data) setUpdates(data);
     }
 
     async function updateLeadStatus(id: string, status: string) {
@@ -153,6 +168,11 @@ export default function AdminDashboard() {
         if (!confirm("Delete this invoice?")) return;
         await supabase.from("invoices").delete().eq("id", id);
         fetchInvoices();
+    }
+
+    async function deleteUpdate(id: string) {
+        await supabase.from("project_updates").delete().eq("id", id);
+        fetchUpdates();
     }
 
     async function addClient(e: React.FormEvent) {
@@ -210,6 +230,17 @@ export default function AdminDashboard() {
         }]);
         setReplyText({ ...replyText, [projectId]: "" });
         fetchMessages();
+    }
+
+    async function addUpdate(projectId: string) {
+        const text = updateText[projectId];
+        if (!text?.trim()) return;
+        await supabase.from("project_updates").insert([{
+            project_id: projectId,
+            message: text.trim(),
+        }]);
+        setUpdateText({ ...updateText, [projectId]: "" });
+        fetchUpdates();
     }
 
     async function handleLogout() {
@@ -369,53 +400,78 @@ export default function AdminDashboard() {
                         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20 }}>
                             <button onClick={() => setShowAddProject(true)} style={{ fontSize: 14, background: "#0071e3", color: "white", padding: "12px 28px", border: "none", borderRadius: 980, fontFamily: "var(--font-outfit)", cursor: "pointer" }}>+ Add Project</button>
                         </div>
-                        <div style={{ background: "#ffffff", borderRadius: 20, border: "1px solid rgba(0,0,0,0.06)", overflow: "hidden" }}>
-                            <div style={{ padding: "24px 32px", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
-                                <h2 style={{ fontFamily: "var(--font-cormorant)", fontSize: 24, fontWeight: 300, color: "#1d1d1f" }}>All Projects</h2>
-                            </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                             {projects.length === 0 ? (
-                                <div style={{ padding: "60px", textAlign: "center", color: "#6e6e73", fontFamily: "var(--font-outfit)" }}>No projects yet.</div>
-                            ) : (
-                                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                                    <thead>
-                                        <tr style={{ background: "#f5f5f7" }}>
-                                            {["Title", "Type", "Client", "Progress", "Status", "Deadline", ""].map(h => (
-                                                <th key={h} style={{ padding: "12px 20px", textAlign: "left", fontSize: 11, color: "#6e6e73", fontFamily: "var(--font-outfit)", letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 400 }}>{h}</th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {projects.map((project, i) => (
-                                            <tr key={project.id} style={{ borderTop: "1px solid rgba(0,0,0,0.04)", background: i % 2 === 0 ? "#ffffff" : "#fafafa" }}>
-                                                <td style={{ padding: "14px 20px", fontSize: 14, color: "#1d1d1f", fontFamily: "var(--font-outfit)", fontWeight: 400 }}>{project.title}</td>
-                                                <td style={{ padding: "14px 20px" }}>
-                                                    <span style={{ fontSize: 12, padding: "4px 12px", borderRadius: 980, background: project.type === "web" ? "rgba(0,113,227,0.1)" : project.type === "iot" ? "rgba(52,199,89,0.1)" : project.type === "mobile" ? "rgba(255,149,0,0.1)" : "rgba(175,82,222,0.1)", color: project.type === "web" ? "#0071e3" : project.type === "iot" ? "#34c759" : project.type === "mobile" ? "#ff9500" : "#af52de", fontFamily: "var(--font-outfit)" }}>{project.type}</span>
-                                                </td>
-                                                <td style={{ padding: "14px 20px", fontSize: 13, color: "#6e6e73", fontFamily: "var(--font-outfit)" }}>
-                                                    {clients.find(c => c.id === project.client_id)?.name || "—"}
-                                                </td>
-                                                <td style={{ padding: "14px 20px", minWidth: 120 }}>
-                                                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                                        <div style={{ flex: 1, height: 6, background: "rgba(0,0,0,0.08)", borderRadius: 3 }}>
-                                                            <div style={{ width: `${project.progress}%`, height: "100%", background: "#0071e3", borderRadius: 3 }} />
-                                                        </div>
-                                                        <span style={{ fontSize: 12, color: "#6e6e73", fontFamily: "var(--font-outfit)" }}>{project.progress}%</span>
+                                <div style={{ padding: "60px", textAlign: "center", color: "#6e6e73", fontFamily: "var(--font-outfit)", background: "#ffffff", borderRadius: 20, border: "1px solid rgba(0,0,0,0.06)" }}>No projects yet.</div>
+                            ) : projects.map((project) => {
+                                const client = clients.find(c => c.id === project.client_id);
+                                const projectUpdates = updates.filter(u => u.project_id === project.id);
+                                const isExpanded = expandedProject === project.id;
+
+                                return (
+                                    <div key={project.id} style={{ background: "#ffffff", borderRadius: 20, border: "1px solid rgba(0,0,0,0.06)", overflow: "hidden" }}>
+                                        {/* Project row */}
+                                        <div style={{ padding: "24px 28px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                            <div style={{ display: "flex", alignItems: "center", gap: 20, flex: 1 }}>
+                                                <div>
+                                                    <div style={{ fontSize: 15, color: "#1d1d1f", fontFamily: "var(--font-outfit)", fontWeight: 400, marginBottom: 4 }}>{project.title}</div>
+                                                    <div style={{ fontSize: 12, color: "#6e6e73", fontFamily: "var(--font-outfit)" }}>{client?.name || "—"}</div>
+                                                </div>
+                                                <span style={{ fontSize: 12, padding: "4px 12px", borderRadius: 980, background: project.type === "web" ? "rgba(0,113,227,0.1)" : project.type === "iot" ? "rgba(52,199,89,0.1)" : project.type === "mobile" ? "rgba(255,149,0,0.1)" : "rgba(175,82,222,0.1)", color: project.type === "web" ? "#0071e3" : project.type === "iot" ? "#34c759" : project.type === "mobile" ? "#ff9500" : "#af52de", fontFamily: "var(--font-outfit)" }}>{project.type}</span>
+                                                <span style={{ fontSize: 12, padding: "4px 12px", borderRadius: 980, background: project.status === "in_progress" ? "rgba(0,113,227,0.1)" : project.status === "completed" ? "rgba(52,199,89,0.1)" : "rgba(255,149,0,0.1)", color: project.status === "in_progress" ? "#0071e3" : project.status === "completed" ? "#34c759" : "#ff9500", fontFamily: "var(--font-outfit)" }}>{project.status.replace("_", " ")}</span>
+                                                <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 140 }}>
+                                                    <div style={{ flex: 1, height: 6, background: "rgba(0,0,0,0.08)", borderRadius: 3 }}>
+                                                        <div style={{ width: `${project.progress}%`, height: "100%", background: "#0071e3", borderRadius: 3 }} />
                                                     </div>
-                                                </td>
-                                                <td style={{ padding: "14px 20px" }}>
-                                                    <span style={{ fontSize: 12, padding: "4px 12px", borderRadius: 980, background: project.status === "in_progress" ? "rgba(0,113,227,0.1)" : project.status === "completed" ? "rgba(52,199,89,0.1)" : project.status === "on_hold" ? "rgba(255,149,0,0.1)" : "rgba(255,59,48,0.1)", color: project.status === "in_progress" ? "#0071e3" : project.status === "completed" ? "#34c759" : project.status === "on_hold" ? "#ff9500" : "#ff3b30", fontFamily: "var(--font-outfit)" }}>{project.status.replace("_", " ")}</span>
-                                                </td>
-                                                <td style={{ padding: "14px 20px", fontSize: 12, color: "#a1a1a6", fontFamily: "var(--font-outfit)" }}>
-                                                    {project.deadline ? new Date(project.deadline).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" }) : "—"}
-                                                </td>
-                                                <td style={{ padding: "14px 20px" }}>
-                                                    <button onClick={() => deleteProject(project.id)} style={{ fontSize: 12, color: "#ff3b30", background: "rgba(255,59,48,0.08)", border: "1px solid rgba(255,59,48,0.2)", padding: "6px 14px", borderRadius: 980, fontFamily: "var(--font-outfit)", cursor: "pointer" }}>Delete</button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            )}
+                                                    <span style={{ fontSize: 12, color: "#6e6e73", fontFamily: "var(--font-outfit)" }}>{project.progress}%</span>
+                                                </div>
+                                            </div>
+                                            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                                                <button onClick={() => setExpandedProject(isExpanded ? null : project.id)} style={{ fontSize: 12, color: "#0071e3", background: "rgba(0,113,227,0.08)", border: "1px solid rgba(0,113,227,0.2)", padding: "6px 14px", borderRadius: 980, fontFamily: "var(--font-outfit)", cursor: "pointer" }}>
+                                                    {isExpanded ? "Hide Updates" : `Updates (${projectUpdates.length})`}
+                                                </button>
+                                                <button onClick={() => deleteProject(project.id)} style={{ fontSize: 12, color: "#ff3b30", background: "rgba(255,59,48,0.08)", border: "1px solid rgba(255,59,48,0.2)", padding: "6px 14px", borderRadius: 980, fontFamily: "var(--font-outfit)", cursor: "pointer" }}>Delete</button>
+                                            </div>
+                                        </div>
+
+                                        {/* Expanded updates section */}
+                                        {isExpanded && (
+                                            <div style={{ borderTop: "1px solid rgba(0,0,0,0.06)", padding: "24px 28px", background: "#fafafa" }}>
+                                                <h4 style={{ fontSize: 13, color: "#6e6e73", fontFamily: "var(--font-outfit)", marginBottom: 16, letterSpacing: "0.06em", textTransform: "uppercase" }}>Project Updates</h4>
+
+                                                {/* Add update input */}
+                                                <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+                                                    <input
+                                                        value={updateText[project.id] || ""}
+                                                        onChange={e => setUpdateText({ ...updateText, [project.id]: e.target.value })}
+                                                        placeholder="Post an update for this client..."
+                                                        onKeyDown={e => { if (e.key === "Enter") addUpdate(project.id); }}
+                                                        style={{ flex: 1, padding: "10px 16px", borderRadius: 10, border: "1.5px solid rgba(0,0,0,0.1)", fontSize: 14, fontFamily: "var(--font-outfit)", color: "#1d1d1f", background: "#ffffff", outline: "none" }}
+                                                    />
+                                                    <button onClick={() => addUpdate(project.id)} style={{ fontSize: 13, background: "#0071e3", color: "white", padding: "10px 20px", border: "none", fontFamily: "var(--font-outfit)", borderRadius: 10, cursor: "pointer", whiteSpace: "nowrap" }}>Post Update</button>
+                                                </div>
+
+                                                {/* Updates list */}
+                                                {projectUpdates.length === 0 ? (
+                                                    <p style={{ fontSize: 13, color: "#a1a1a6", fontFamily: "var(--font-outfit)" }}>No updates posted yet.</p>
+                                                ) : (
+                                                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                                                        {projectUpdates.map(update => (
+                                                            <div key={update.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "14px 18px", background: "#ffffff", borderRadius: 10, border: "1px solid rgba(0,0,0,0.06)", borderLeft: "3px solid #0071e3" }}>
+                                                                <div>
+                                                                    <p style={{ fontSize: 14, color: "#1d1d1f", fontFamily: "var(--font-outfit)", lineHeight: 1.5, marginBottom: 4 }}>{update.message}</p>
+                                                                    <span style={{ fontSize: 11, color: "#a1a1a6", fontFamily: "var(--font-outfit)" }}>{new Date(update.created_at).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" })}</span>
+                                                                </div>
+                                                                <button onClick={() => deleteUpdate(update.id)} style={{ fontSize: 11, color: "#ff3b30", background: "transparent", border: "none", cursor: "pointer", fontFamily: "var(--font-outfit)", marginLeft: 16, whiteSpace: "nowrap" }}>Delete</button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
                 )}
@@ -487,7 +543,6 @@ export default function AdminDashboard() {
                             <h2 style={{ fontFamily: "var(--font-cormorant)", fontSize: 24, fontWeight: 300, color: "#1d1d1f" }}>Client Messages</h2>
                             <span style={{ fontSize: 12, color: "#6e6e73", fontFamily: "var(--font-outfit)" }}>{messages.length} total messages</span>
                         </div>
-
                         {projects.map(project => {
                             const projectMessages = messages.filter(m => m.project_id === project.id);
                             if (projectMessages.length === 0) return null;
@@ -526,7 +581,6 @@ export default function AdminDashboard() {
                                 </div>
                             );
                         })}
-
                         {projects.every(p => messages.filter(m => m.project_id === p.id).length === 0) && (
                             <div style={{ textAlign: "center", padding: "60px", background: "#ffffff", borderRadius: 20, border: "1px solid rgba(0,0,0,0.06)", color: "#6e6e73", fontFamily: "var(--font-outfit)" }}>
                                 No messages yet. Messages from clients will appear here.
