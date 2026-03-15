@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
@@ -28,6 +28,13 @@ type Invoice = {
     status: string;
     due_date: string;
     description: string;
+    created_at: string;
+};
+
+type Message = {
+    id: string;
+    message: string;
+    sender: string;
     created_at: string;
 };
 
@@ -77,20 +84,26 @@ export default function ClientDashboard() {
     const [selectedProject, setSelectedProject] = useState<Project | null>(null);
     const [updates, setUpdates] = useState<Update[]>([]);
     const [invoices, setInvoices] = useState<Invoice[]>([]);
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [newMessage, setNewMessage] = useState("");
     const [webDetails, setWebDetails] = useState<WebDetails | null>(null);
     const [iotDetails, setIotDetails] = useState<IotDetails | null>(null);
     const [mobileDetails, setMobileDetails] = useState<MobileDetails | null>(null);
     const [managedDetails, setManagedDetails] = useState<ManagedDetails | null>(null);
     const [clientName, setClientName] = useState("");
+    const [clientId, setClientId] = useState("");
     const [loading, setLoading] = useState(true);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
 
     useEffect(() => { checkUser(); }, []);
     useEffect(() => { if (selectedProject) fetchProjectDetails(selectedProject); }, [selectedProject]);
+    useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
     async function checkUser() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.push("/client/login"); return; }
+        setClientId(user.id);
         const { data: client } = await supabase.from("clients").select("*").eq("id", user.id).single();
         if (client) setClientName(client.name);
         const { data: projectsData } = await supabase.from("projects").select("*").eq("client_id", user.id).order("created_at", { ascending: false });
@@ -104,10 +117,25 @@ export default function ClientDashboard() {
         setWebDetails(null); setIotDetails(null); setMobileDetails(null); setManagedDetails(null);
         const { data: updatesData } = await supabase.from("project_updates").select("*").eq("project_id", project.id).order("created_at", { ascending: false });
         if (updatesData) setUpdates(updatesData);
+        const { data: messagesData } = await supabase.from("messages").select("*").eq("project_id", project.id).order("created_at", { ascending: true });
+        if (messagesData) setMessages(messagesData);
         if (project.type === "web") { const { data } = await supabase.from("web_details").select("*").eq("project_id", project.id).single(); if (data) setWebDetails(data); }
         if (project.type === "iot") { const { data } = await supabase.from("iot_details").select("*").eq("project_id", project.id).single(); if (data) setIotDetails(data); }
         if (project.type === "mobile") { const { data } = await supabase.from("mobile_details").select("*").eq("project_id", project.id).single(); if (data) setMobileDetails(data); }
         if (project.type === "managed") { const { data } = await supabase.from("managed_details").select("*").eq("project_id", project.id).single(); if (data) setManagedDetails(data); }
+    }
+
+    async function sendMessage(e: React.FormEvent) {
+        e.preventDefault();
+        if (!newMessage.trim() || !selectedProject) return;
+        await supabase.from("messages").insert([{
+            project_id: selectedProject.id,
+            client_id: clientId,
+            sender: "client",
+            message: newMessage.trim(),
+        }]);
+        setNewMessage("");
+        fetchProjectDetails(selectedProject);
     }
 
     async function handleLogout() { await supabase.auth.signOut(); router.push("/client/login"); }
@@ -162,7 +190,6 @@ export default function ClientDashboard() {
                                 </div>
                             ))}
 
-                            {/* Invoices summary in sidebar */}
                             {invoices.length > 0 && (
                                 <div style={{ marginTop: 16 }}>
                                     <h3 style={{ fontFamily: "var(--font-outfit)", fontSize: 12, color: "#6e6e73", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Invoices</h3>
@@ -170,9 +197,7 @@ export default function ClientDashboard() {
                                         <div key={invoice.id} style={{ background: "#ffffff", borderRadius: 12, padding: "16px", border: `1px solid ${invoice.status === "paid" ? "rgba(52,199,89,0.2)" : invoice.status === "overdue" ? "rgba(255,59,48,0.2)" : "rgba(255,149,0,0.2)"}`, marginBottom: 8 }}>
                                             <div style={{ fontSize: 13, color: "#1d1d1f", fontFamily: "var(--font-outfit)", fontWeight: 400, marginBottom: 4 }}>{invoice.currency} {invoice.amount.toLocaleString()}</div>
                                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                                <span style={{ fontSize: 11, color: "#a1a1a6", fontFamily: "var(--font-outfit)" }}>
-                                                    {invoice.due_date ? new Date(invoice.due_date).toLocaleDateString("en-PK", { day: "numeric", month: "short" }) : "—"}
-                                                </span>
+                                                <span style={{ fontSize: 11, color: "#a1a1a6", fontFamily: "var(--font-outfit)" }}>{invoice.due_date ? new Date(invoice.due_date).toLocaleDateString("en-PK", { day: "numeric", month: "short" }) : "—"}</span>
                                                 <span style={{ fontSize: 11, padding: "2px 10px", borderRadius: 980, background: invoice.status === "paid" ? "rgba(52,199,89,0.1)" : invoice.status === "overdue" ? "rgba(255,59,48,0.1)" : "rgba(255,149,0,0.1)", color: invoice.status === "paid" ? "#34c759" : invoice.status === "overdue" ? "#ff3b30" : "#ff9500", fontFamily: "var(--font-outfit)" }}>{invoice.status}</span>
                                             </div>
                                         </div>
@@ -347,11 +372,9 @@ export default function ClientDashboard() {
                                 )}
 
                                 {/* Updates */}
-                                <div style={{ background: "#ffffff", borderRadius: 20, padding: "32px", border: "1px solid rgba(0,0,0,0.06)" }}>
-                                    <h3 style={{ fontFamily: "var(--font-cormorant)", fontSize: 24, fontWeight: 300, color: "#1d1d1f", marginBottom: 20 }}>Project Updates</h3>
-                                    {updates.length === 0 ? (
-                                        <p style={{ fontSize: 14, color: "#a1a1a6", fontFamily: "var(--font-outfit)" }}>No updates yet. Check back soon!</p>
-                                    ) : (
+                                {updates.length > 0 && (
+                                    <div style={{ background: "#ffffff", borderRadius: 20, padding: "32px", border: "1px solid rgba(0,0,0,0.06)" }}>
+                                        <h3 style={{ fontFamily: "var(--font-cormorant)", fontSize: 24, fontWeight: 300, color: "#1d1d1f", marginBottom: 20 }}>Project Updates</h3>
                                         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                                             {updates.map(update => (
                                                 <div key={update.id} style={{ padding: "20px", background: "#f5f5f7", borderRadius: 12, borderLeft: "3px solid #0071e3" }}>
@@ -360,7 +383,63 @@ export default function ClientDashboard() {
                                                 </div>
                                             ))}
                                         </div>
-                                    )}
+                                    </div>
+                                )}
+
+                                {/* Messages */}
+                                <div style={{ background: "#ffffff", borderRadius: 20, padding: "32px", border: "1px solid rgba(0,0,0,0.06)" }}>
+                                    <h3 style={{ fontFamily: "var(--font-cormorant)", fontSize: 24, fontWeight: 300, color: "#1d1d1f", marginBottom: 20 }}>Messages</h3>
+
+                                    {/* Messages list */}
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24, maxHeight: 400, overflowY: "auto" }}>
+                                        {messages.length === 0 ? (
+                                            <p style={{ fontSize: 14, color: "#a1a1a6", fontFamily: "var(--font-outfit)", textAlign: "center", padding: "24px 0" }}>No messages yet. Send a message to Synve!</p>
+                                        ) : (
+                                            messages.map(msg => (
+                                                <div key={msg.id} style={{
+                                                    display: "flex",
+                                                    justifyContent: msg.sender === "client" ? "flex-end" : "flex-start",
+                                                }}>
+                                                    <div style={{
+                                                        maxWidth: "70%",
+                                                        padding: "12px 16px",
+                                                        borderRadius: msg.sender === "client" ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
+                                                        background: msg.sender === "client" ? "#0071e3" : "#f5f5f7",
+                                                        color: msg.sender === "client" ? "white" : "#1d1d1f",
+                                                    }}>
+                                                        <p style={{ fontSize: 14, fontFamily: "var(--font-outfit)", lineHeight: 1.5, marginBottom: 4 }}>{msg.message}</p>
+                                                        <span style={{ fontSize: 10, opacity: 0.7, fontFamily: "var(--font-outfit)" }}>
+                                                            {new Date(msg.created_at).toLocaleTimeString("en-PK", { hour: "2-digit", minute: "2-digit" })}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                        <div ref={messagesEndRef} />
+                                    </div>
+
+                                    {/* Message input */}
+                                    <form onSubmit={sendMessage} style={{ display: "flex", gap: 12 }}>
+                                        <input
+                                            value={newMessage}
+                                            onChange={e => setNewMessage(e.target.value)}
+                                            placeholder="Type a message to Synve..."
+                                            style={{
+                                                flex: 1, padding: "12px 18px", borderRadius: 12,
+                                                border: "1.5px solid rgba(0,0,0,0.1)",
+                                                fontSize: 14, fontFamily: "var(--font-outfit)",
+                                                color: "#1d1d1f", background: "#f5f5f7", outline: "none",
+                                            }}
+                                            onFocus={e => e.currentTarget.style.borderColor = "#0071e3"}
+                                            onBlur={e => e.currentTarget.style.borderColor = "rgba(0,0,0,0.1)"}
+                                        />
+                                        <button type="submit" style={{
+                                            fontSize: 14, background: "#0071e3", color: "white",
+                                            padding: "12px 24px", border: "none",
+                                            fontFamily: "var(--font-outfit)", borderRadius: 12,
+                                            cursor: "pointer", whiteSpace: "nowrap",
+                                        }}>Send →</button>
+                                    </form>
                                 </div>
 
                             </div>

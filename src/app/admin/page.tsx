@@ -47,6 +47,16 @@ type Invoice = {
     created_at: string;
 };
 
+type Message = {
+    id: string;
+    project_id: string;
+    client_id: string;
+    sender: string;
+    message: string;
+    read: boolean;
+    created_at: string;
+};
+
 const statusColors: Record<string, string> = {
     new: "#0071e3",
     contacted: "#ff9500",
@@ -54,7 +64,7 @@ const statusColors: Record<string, string> = {
     lost: "#ff3b30",
 };
 
-const tabs = ["Leads", "Clients", "Projects", "Invoices"];
+const tabs = ["Leads", "Clients", "Projects", "Invoices", "Messages"];
 
 export default function AdminDashboard() {
     const [activeTab, setActiveTab] = useState("Leads");
@@ -62,6 +72,8 @@ export default function AdminDashboard() {
     const [clients, setClients] = useState<Client[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
     const [invoices, setInvoices] = useState<Invoice[]>([]);
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [replyText, setReplyText] = useState<Record<string, string>>({});
     const [user, setUser] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
@@ -81,7 +93,7 @@ export default function AdminDashboard() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.push("/admin/login"); return; }
         setUser(user);
-        await Promise.all([fetchLeads(), fetchClients(), fetchProjects(), fetchInvoices()]);
+        await Promise.all([fetchLeads(), fetchClients(), fetchProjects(), fetchInvoices(), fetchMessages()]);
         setLoading(false);
     }
 
@@ -105,6 +117,11 @@ export default function AdminDashboard() {
         if (data) setInvoices(data);
     }
 
+    async function fetchMessages() {
+        const { data } = await supabase.from("messages").select("*").order("created_at", { ascending: true });
+        if (data) setMessages(data);
+    }
+
     async function updateLeadStatus(id: string, status: string) {
         await supabase.from("leads").update({ status }).eq("id", id);
         fetchLeads();
@@ -117,7 +134,7 @@ export default function AdminDashboard() {
     }
 
     async function deleteClient(id: string) {
-        if (!confirm("Delete this client? This will also delete their projects.")) return;
+        if (!confirm("Delete this client?")) return;
         await fetch("/api/delete-client", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -179,6 +196,20 @@ export default function AdminDashboard() {
         if (status === "paid") update.paid_date = new Date().toISOString();
         await supabase.from("invoices").update(update).eq("id", id);
         fetchInvoices();
+    }
+
+    async function sendReply(projectId: string, clientId: string) {
+        const text = replyText[projectId];
+        if (!text?.trim()) return;
+        await supabase.from("messages").insert([{
+            project_id: projectId,
+            client_id: clientId,
+            sender: "admin",
+            message: text.trim(),
+            read: true,
+        }]);
+        setReplyText({ ...replyText, [projectId]: "" });
+        fetchMessages();
     }
 
     async function handleLogout() {
@@ -395,7 +426,6 @@ export default function AdminDashboard() {
                         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20 }}>
                             <button onClick={() => setShowAddInvoice(true)} style={{ fontSize: 14, background: "#0071e3", color: "white", padding: "12px 28px", border: "none", borderRadius: 980, fontFamily: "var(--font-outfit)", cursor: "pointer" }}>+ Create Invoice</button>
                         </div>
-
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
                             {[
                                 { label: "Total Invoiced", value: `PKR ${invoices.reduce((a, b) => a + b.amount, 0).toLocaleString()}`, color: "#0071e3" },
@@ -408,7 +438,6 @@ export default function AdminDashboard() {
                                 </div>
                             ))}
                         </div>
-
                         <div style={{ background: "#ffffff", borderRadius: 20, border: "1px solid rgba(0,0,0,0.06)", overflow: "hidden" }}>
                             <div style={{ padding: "24px 32px", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
                                 <h2 style={{ fontFamily: "var(--font-cormorant)", fontSize: 24, fontWeight: 300, color: "#1d1d1f" }}>All Invoices</h2>
@@ -427,18 +456,10 @@ export default function AdminDashboard() {
                                     <tbody>
                                         {invoices.map((invoice, i) => (
                                             <tr key={invoice.id} style={{ borderTop: "1px solid rgba(0,0,0,0.04)", background: i % 2 === 0 ? "#ffffff" : "#fafafa" }}>
-                                                <td style={{ padding: "14px 20px", fontSize: 14, color: "#1d1d1f", fontFamily: "var(--font-outfit)" }}>
-                                                    {clients.find(c => c.id === invoice.client_id)?.name || "—"}
-                                                </td>
-                                                <td style={{ padding: "14px 20px", fontSize: 13, color: "#6e6e73", fontFamily: "var(--font-outfit)" }}>
-                                                    {projects.find(p => p.id === invoice.project_id)?.title || "—"}
-                                                </td>
-                                                <td style={{ padding: "14px 20px", fontSize: 14, color: "#1d1d1f", fontFamily: "var(--font-outfit)", fontWeight: 400 }}>
-                                                    {invoice.currency} {invoice.amount.toLocaleString()}
-                                                </td>
-                                                <td style={{ padding: "14px 20px", fontSize: 13, color: "#6e6e73", fontFamily: "var(--font-outfit)", maxWidth: 200 }}>
-                                                    {invoice.description?.slice(0, 40)}{invoice.description?.length > 40 ? "..." : ""}
-                                                </td>
+                                                <td style={{ padding: "14px 20px", fontSize: 14, color: "#1d1d1f", fontFamily: "var(--font-outfit)" }}>{clients.find(c => c.id === invoice.client_id)?.name || "—"}</td>
+                                                <td style={{ padding: "14px 20px", fontSize: 13, color: "#6e6e73", fontFamily: "var(--font-outfit)" }}>{projects.find(p => p.id === invoice.project_id)?.title || "—"}</td>
+                                                <td style={{ padding: "14px 20px", fontSize: 14, color: "#1d1d1f", fontFamily: "var(--font-outfit)", fontWeight: 400 }}>{invoice.currency} {invoice.amount.toLocaleString()}</td>
+                                                <td style={{ padding: "14px 20px", fontSize: 13, color: "#6e6e73", fontFamily: "var(--font-outfit)", maxWidth: 200 }}>{invoice.description?.slice(0, 40)}{invoice.description?.length > 40 ? "..." : ""}</td>
                                                 <td style={{ padding: "14px 20px" }}>
                                                     <select value={invoice.status} onChange={e => updateInvoiceStatus(invoice.id, e.target.value)} style={{ fontSize: 12, padding: "6px 12px", borderRadius: 980, border: `1.5px solid ${invoice.status === "paid" ? "#34c75944" : invoice.status === "overdue" ? "#ff3b3044" : "#ff950044"}`, background: invoice.status === "paid" ? "rgba(52,199,89,0.1)" : invoice.status === "overdue" ? "rgba(255,59,48,0.1)" : "rgba(255,149,0,0.1)", color: invoice.status === "paid" ? "#34c759" : invoice.status === "overdue" ? "#ff3b30" : "#ff9500", fontFamily: "var(--font-outfit)", cursor: "pointer", outline: "none" }}>
                                                         <option value="unpaid">Unpaid</option>
@@ -446,9 +467,7 @@ export default function AdminDashboard() {
                                                         <option value="overdue">Overdue</option>
                                                     </select>
                                                 </td>
-                                                <td style={{ padding: "14px 20px", fontSize: 12, color: "#a1a1a6", fontFamily: "var(--font-outfit)" }}>
-                                                    {invoice.due_date ? new Date(invoice.due_date).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" }) : "—"}
-                                                </td>
+                                                <td style={{ padding: "14px 20px", fontSize: 12, color: "#a1a1a6", fontFamily: "var(--font-outfit)" }}>{invoice.due_date ? new Date(invoice.due_date).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" }) : "—"}</td>
                                                 <td style={{ padding: "14px 20px" }}>
                                                     <button onClick={() => deleteInvoice(invoice.id)} style={{ fontSize: 12, color: "#ff3b30", background: "rgba(255,59,48,0.08)", border: "1px solid rgba(255,59,48,0.2)", padding: "6px 14px", borderRadius: 980, fontFamily: "var(--font-outfit)", cursor: "pointer" }}>Delete</button>
                                                 </td>
@@ -458,6 +477,61 @@ export default function AdminDashboard() {
                                 </table>
                             )}
                         </div>
+                    </div>
+                )}
+
+                {/* MESSAGES TAB */}
+                {activeTab === "Messages" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                            <h2 style={{ fontFamily: "var(--font-cormorant)", fontSize: 24, fontWeight: 300, color: "#1d1d1f" }}>Client Messages</h2>
+                            <span style={{ fontSize: 12, color: "#6e6e73", fontFamily: "var(--font-outfit)" }}>{messages.length} total messages</span>
+                        </div>
+
+                        {projects.map(project => {
+                            const projectMessages = messages.filter(m => m.project_id === project.id);
+                            if (projectMessages.length === 0) return null;
+                            const client = clients.find(c => c.id === project.client_id);
+                            return (
+                                <div key={project.id} style={{ background: "#ffffff", borderRadius: 20, border: "1px solid rgba(0,0,0,0.06)", overflow: "hidden" }}>
+                                    <div style={{ padding: "20px 28px", borderBottom: "1px solid rgba(0,0,0,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                        <div>
+                                            <h3 style={{ fontFamily: "var(--font-cormorant)", fontSize: 20, fontWeight: 400, color: "#1d1d1f" }}>{project.title}</h3>
+                                            <span style={{ fontSize: 12, color: "#6e6e73", fontFamily: "var(--font-outfit)" }}>{client?.name} · {client?.email}</span>
+                                        </div>
+                                        <span style={{ fontSize: 11, padding: "4px 12px", borderRadius: 980, background: "rgba(0,113,227,0.1)", color: "#0071e3", fontFamily: "var(--font-outfit)" }}>{project.type}</span>
+                                    </div>
+                                    <div style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 12, maxHeight: 400, overflowY: "auto" }}>
+                                        {projectMessages.map(msg => (
+                                            <div key={msg.id} style={{ display: "flex", justifyContent: msg.sender === "admin" ? "flex-end" : "flex-start" }}>
+                                                <div style={{ maxWidth: "65%", padding: "12px 16px", borderRadius: msg.sender === "admin" ? "16px 16px 4px 16px" : "16px 16px 16px 4px", background: msg.sender === "admin" ? "#0071e3" : "#f5f5f7", color: msg.sender === "admin" ? "white" : "#1d1d1f" }}>
+                                                    <p style={{ fontSize: 14, fontFamily: "var(--font-outfit)", lineHeight: 1.5, marginBottom: 4 }}>{msg.message}</p>
+                                                    <span style={{ fontSize: 10, opacity: 0.7, fontFamily: "var(--font-outfit)" }}>
+                                                        {msg.sender === "admin" ? "You" : client?.name} · {new Date(msg.created_at).toLocaleTimeString("en-PK", { hour: "2-digit", minute: "2-digit" })}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div style={{ padding: "16px 28px", borderTop: "1px solid rgba(0,0,0,0.06)", display: "flex", gap: 12 }}>
+                                        <input
+                                            value={replyText[project.id] || ""}
+                                            onChange={e => setReplyText({ ...replyText, [project.id]: e.target.value })}
+                                            placeholder={`Reply to ${client?.name}...`}
+                                            onKeyDown={e => { if (e.key === "Enter") sendReply(project.id, project.client_id); }}
+                                            style={{ flex: 1, padding: "10px 16px", borderRadius: 10, border: "1.5px solid rgba(0,0,0,0.1)", fontSize: 14, fontFamily: "var(--font-outfit)", color: "#1d1d1f", background: "#f5f5f7", outline: "none" }}
+                                        />
+                                        <button onClick={() => sendReply(project.id, project.client_id)} style={{ fontSize: 13, background: "#0071e3", color: "white", padding: "10px 20px", border: "none", fontFamily: "var(--font-outfit)", borderRadius: 10, cursor: "pointer" }}>Reply →</button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {projects.every(p => messages.filter(m => m.project_id === p.id).length === 0) && (
+                            <div style={{ textAlign: "center", padding: "60px", background: "#ffffff", borderRadius: 20, border: "1px solid rgba(0,0,0,0.06)", color: "#6e6e73", fontFamily: "var(--font-outfit)" }}>
+                                No messages yet. Messages from clients will appear here.
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
